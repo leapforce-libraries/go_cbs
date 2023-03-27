@@ -1,6 +1,7 @@
 package cbs
 
 import (
+	"encoding/json"
 	"fmt"
 	errortools "github.com/leapforce-libraries/go_errortools"
 	go_http "github.com/leapforce-libraries/go_http"
@@ -8,23 +9,27 @@ import (
 	url2 "net/url"
 )
 
-type ObservationsResponse struct {
+type observationsResponse struct {
 	Context  string        `json:"@odata.context"`
-	Value    []Observation `json:"value"`
+	Value    []observation `json:"value"`
 	NextLink string        `json:"@odata.nextLink"`
 }
 
 type Observation struct {
-	Id             int     `json:"Id"`
-	Measure        string  `json:"Measure"`
-	ValueAttribute string  `json:"ValueAttribute"`
-	Value          float64 `json:"Value"`
-	Dimension      string  `json:"-"`
+	Id             int
+	Measure        string
+	ValueAttribute string
+	Value          float64
+	Dimension      string
 }
 
+type observation map[string]json.RawMessage
+
 type GetObservationsConfig struct {
-	Filter *string
-	Select *string
+	TableId       string
+	DimensionName string
+	Filter        *string
+	Select        *string
 }
 
 func (service *Service) GetObservations(config *GetObservationsConfig) (*[]Observation, *errortools.Error) {
@@ -44,10 +49,10 @@ func (service *Service) GetObservations(config *GetObservationsConfig) (*[]Obser
 
 	var observations []Observation
 
-	url := service.url(fmt.Sprintf("%s/Observations?", values.Encode()))
+	url := service.url(fmt.Sprintf("%s/Observations?%s", config.TableId, values.Encode()))
 
 	for {
-		observationsResponse := ObservationsResponse{}
+		observationsResponse := observationsResponse{}
 
 		requestConfig := go_http.RequestConfig{
 			Method:        http.MethodGet,
@@ -59,7 +64,27 @@ func (service *Service) GetObservations(config *GetObservationsConfig) (*[]Obser
 			return nil, e
 		}
 
-		observations = append(observations, observationsResponse.Value...)
+		for _, observation := range observationsResponse.Value {
+			var observation_ Observation
+
+			b, _ := json.Marshal(observation)
+			err := json.Unmarshal(b, &observation_)
+			if err != nil {
+				return nil, errortools.ErrorMessage(err)
+			}
+
+			if config.DimensionName != "" {
+				d, ok := observation[config.DimensionName]
+				if ok {
+					err := json.Unmarshal(d, &observation_.Dimension)
+					if err != nil {
+						return nil, errortools.ErrorMessage(err)
+					}
+				}
+			}
+
+			observations = append(observations, observation_)
+		}
 
 		if observationsResponse.NextLink == "" {
 			break
