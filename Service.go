@@ -17,7 +17,6 @@ type Service struct {
 }
 
 type ServiceConfig struct {
-	Accept *go_http.Accept
 }
 
 func NewService(serviceConfig *ServiceConfig) (*Service, *errortools.Error) {
@@ -25,8 +24,9 @@ func NewService(serviceConfig *ServiceConfig) (*Service, *errortools.Error) {
 		return nil, errortools.ErrorMessage("ServiceConfig must not be a nil pointer")
 	}
 
+	accept := go_http.AcceptJson
 	httpService, e := go_http.NewService(&go_http.ServiceConfig{
-		Accept:     serviceConfig.Accept,
+		Accept:     &accept,
 		HttpClient: &http.Client{},
 	})
 	if e != nil {
